@@ -11,6 +11,7 @@ interface AuthValue {
   profileLoading: boolean
   isAdmin: boolean
   signIn: (email: string, password: string) => Promise<void>
+  signInWithGoogle: () => Promise<void>
   signUp: (email: string, password: string, fullName: string) => Promise<{ needsConfirmation: boolean }>
   signOut: () => Promise<void>
   sendReset: (email: string) => Promise<void>
@@ -64,6 +65,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw new Error(error.message)
   }, [])
 
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    })
+    if (error) throw new Error(error.message)
+  }, [])
+
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(), password,
@@ -95,8 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthValue>(() => ({
     user, profile, session, loading, profileLoading,
     isAdmin: profile?.role === 'admin',
-    signIn, signUp, signOut, sendReset, updatePassword, refreshProfile,
-  }), [user, profile, session, loading, profileLoading, signIn, signUp, signOut, sendReset, updatePassword, refreshProfile])
+    signIn, signInWithGoogle, signUp, signOut, sendReset, updatePassword, refreshProfile,
+  }), [user, profile, session, loading, profileLoading, signIn, signInWithGoogle, signUp, signOut, sendReset, updatePassword, refreshProfile])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
