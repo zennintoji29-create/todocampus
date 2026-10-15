@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { FileText, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { FileText, Pencil, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuth } from '@/hooks/useAuth'
 import {
   adminCreate, adminDelete, adminUpdate, fetchOfficialResources, fetchSemesters, fetchSubjects,
 } from '@/lib/api'
@@ -12,6 +13,7 @@ import { AdminEditorShell } from './Curriculum'
 import { titleCase } from '@/lib/utils'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { formatDistanceToNowStrict } from 'date-fns'
+import { recordAuditBlock } from '@/lib/blockchainAudit'
 
 export default function AdminResources() {
   const { data, loading, error, reload } = useAsyncData(async () => {
@@ -125,6 +127,7 @@ export default function AdminResources() {
 
 /* ===================== Users & roles ===================== */
 export function AdminUsers() {
+  const { user: currentUser } = useAuth()
   const { data, loading, error, reload } = useAsyncData(async () => {
     const api = await import('@/lib/api')
     const [users, adminEmails] = await Promise.all([api.listUsers(), api.listAdminEmails()])
@@ -140,12 +143,25 @@ export function AdminUsers() {
     (!q || `${u.full_name ?? ''} ${u.email ?? ''}`.toLowerCase().includes(q.toLowerCase())) &&
     (!roleFilter || u.role === roleFilter))
 
-  const setRole = async (userId: string, role: 'student' | 'admin') => {
+  const setRole = async (userId: string, role: 'student' | 'admin', userEmail?: string) => {
+    if (userEmail === 'zennintoji29@gmail.com' && role === 'student') {
+      toast.error('The primary Super Admin account cannot be demoted.')
+      return
+    }
+    if (currentUser?.id === userId && role === 'student') {
+      if (!window.confirm('Warning: Demoting yourself will remove your admin access on next refresh. Proceed?')) {
+        return
+      }
+    }
     setBusy(true)
     try {
       const { setUserRole } = await import('@/lib/api')
       await setUserRole(userId, role)
-      toast.success(`Role changed to ${role}`)
+      await recordAuditBlock('ROLE_CHANGE', currentUser?.email ?? 'admin', userId, {
+        targetEmail: userEmail,
+        newRole: role,
+      })
+      toast.success(`Role changed to ${role} · Anchored to blockchain ledger`)
       await reload()
     } catch (e: any) { toast.error(e?.message ?? 'Could not change the role — only admins may do this.') }
     finally { setBusy(false) }
@@ -158,6 +174,7 @@ export function AdminUsers() {
     try {
       const { allowAdminEmail } = await import('@/lib/api')
       await allowAdminEmail(email)
+      await recordAuditBlock('ADMIN_ALLOWLIST_ADD', currentUser?.email ?? 'admin', email)
       setNewEmail('')
       toast.success('Added — new signups with this email become admins automatically')
       await reload()
@@ -170,6 +187,7 @@ export function AdminUsers() {
     try {
       const { revokeAdminEmail } = await import('@/lib/api')
       await revokeAdminEmail(email)
+      await recordAuditBlock('ADMIN_ALLOWLIST_REVOKE', currentUser?.email ?? 'admin', email)
       toast.success('Removed from the allow list')
       await reload()
     } catch (e: any) { toast.error(e?.message ?? 'Could not remove.') }
@@ -191,30 +209,51 @@ export function AdminUsers() {
             <option value="student">Students</option>
             <option value="admin">Admins</option>
           </Select>
-          <Badge tone="neutral">{data?.users.length ?? 0} users</Badge>
+          <Badge tone="neutral">{data?.users.length ?? 0} members</Badge>
         </div>
         <div className="divide-y divide-line-soft">
-          {rows.map((u: any) => (
-            <div key={u.id} className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-2/60">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bg-2 text-[11px] font-semibold text-accent">
-                {(u.full_name ?? u.email ?? '?').slice(0, 2).toUpperCase()}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-ink">{u.full_name ?? 'Unnamed'}</p>
-                <p className="truncate text-[11px] text-faint">{u.email}</p>
+          {rows.map((u: any) => {
+            const isSuperAdmin = u.email === 'zennintoji29@gmail.com'
+            const isCurrent = currentUser?.id === u.id
+            return (
+              <div key={u.id} className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-bg-2/60">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bg-2 text-[11px] font-semibold text-accent">
+                  {(u.full_name ?? u.email ?? '?').slice(0, 2).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-[13px] font-medium text-ink">{u.full_name ?? 'Unnamed'}</p>
+                    {isSuperAdmin && (
+                      <Badge tone="accent" className="gap-1 font-medium">
+                        <ShieldCheck size={11} /> Super Admin
+                      </Badge>
+                    )}
+                    {isCurrent && (
+                      <Badge tone="info">You</Badge>
+                    )}
+                  </div>
+                  <p className="truncate text-[11px] text-faint">{u.email}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={u.role}
+                    onChange={(e) => setRole(u.id, e.target.value as any, u.email)}
+                    disabled={busy || (isSuperAdmin && currentUser?.email !== 'zennintoji29@gmail.com')}
+                    className="h-8 w-36 text-[12px]"
+                  >
+                    <option value="student">Student</option>
+                    <option value="admin">Administrator</option>
+                  </Select>
+                </div>
               </div>
-              <Select value={u.role} onChange={(e) => setRole(u.id, e.target.value as any)} disabled={busy} className="h-8 w-36 text-[12px]">
-                <option value="student">Student</option>
-                <option value="admin">Administrator</option>
-              </Select>
-            </div>
-          ))}
+            )
+          })}
           {rows.length === 0 && <EmptyState title="No users found" />}
         </div>
         <div className="border-t border-line-soft px-4 py-2.5">
           <p className="text-[11px] leading-relaxed text-faint">
             Role changes take effect on the user's next page load and are enforced by database policies — a student
-            cannot promote themselves even by calling the API directly.
+            cannot promote themselves even by calling the API directly. All changes are verified on the SHA-256 audit ledger.
           </p>
         </div>
       </Card>

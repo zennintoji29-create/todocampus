@@ -24,7 +24,7 @@ type FeedKind = 'assignments' | 'assessments'
 
 /* ===================== Shared official feed ===================== */
 function OfficialFeed({ kind }: { kind: FeedKind }) {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const [q, setQ] = useState('')
   const [subject, setSubject] = useState('')
@@ -108,6 +108,15 @@ function OfficialFeed({ kind }: { kind: FeedKind }) {
         <span>{total} published</span>
         <span>·</span>
         <span className="text-accent">{upcomingCount} upcoming</span>
+        {isAdmin && (
+          <Link
+            to={kind === 'assignments' ? '/admin/assignments' : '/admin/assessments'}
+            className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-2.5 py-1 text-[12px] font-medium text-accent hover:bg-accent/25 transition-colors"
+          >
+            <Plus size={13} />
+            {kind === 'assignments' ? 'New assignment (Admin)' : 'New quiz / exam (Admin)'}
+          </Link>
+        )}
         <span className="ml-auto">Import an item to start tracking it privately.</span>
       </div>
 
@@ -157,6 +166,15 @@ function OfficialFeed({ kind }: { kind: FeedKind }) {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {isAdmin && (
+                      <Link
+                        to={kind === 'assignments' ? `/admin/assignments?edit=${r.id}` : `/admin/assessments?edit=${r.id}`}
+                        className="rounded border border-line-soft bg-bg-2 px-2 py-1 text-[11px] font-medium text-ink-muted hover:border-accent hover:text-accent transition-colors"
+                        title="Edit or delete in Admin Portal"
+                      >
+                        Manage
+                      </Link>
+                    )}
                     {isImported ? (
                       <Badge tone="accent"><Check size={11} /> In your workspace</Badge>
                     ) : (
@@ -184,7 +202,7 @@ export const AssessmentsFeed = () => <OfficialFeed kind="assessments" />
 /* ===================== Assignment / assessment detail ===================== */
 export function AssignmentDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const navigate = useNavigate()
   const [importing, setImporting] = useState(false)
@@ -219,7 +237,14 @@ export function AssignmentDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/assignments')}><ArrowLeft size={14} /> Back</Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/assignments')}><ArrowLeft size={14} /> Back</Button>
+        {isAdmin && (
+          <Link to={`/admin/assignments?edit=${d.id}`}>
+            <Button variant="secondary" size="sm">Edit / Delete in Admin</Button>
+          </Link>
+        )}
+      </div>
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -230,11 +255,18 @@ export function AssignmentDetail() {
               <Badge tone={new Date(d.deadline) < new Date() ? 'danger' : 'accent'}>{titleCase(d.priority)} priority</Badge>
             </div>
           </div>
-          {isImported ? (
-            <Badge tone="accent"><Check size={11} /> In your workspace</Badge>
-          ) : (
-            <Button variant="primary" loading={importing} onClick={doImport}><Plus size={13} /> Add to workspace</Button>
-          )}
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Link to={`/admin/assignments?edit=${d.id}`}>
+                <Button variant="secondary" size="sm">Admin Manage</Button>
+              </Link>
+            )}
+            {isImported ? (
+              <Badge tone="accent"><Check size={11} /> In your workspace</Badge>
+            ) : (
+              <Button variant="primary" loading={importing} onClick={doImport}><Plus size={13} /> Add to workspace</Button>
+            )}
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 border-y border-line-soft py-4 sm:grid-cols-3">
@@ -272,7 +304,7 @@ export function AssignmentDetail() {
 
 export function AssessmentDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const navigate = useNavigate()
   const [importing, setImporting] = useState(false)
@@ -300,7 +332,14 @@ export function AssessmentDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/assessments')}><ArrowLeft size={14} /> Back</Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/assessments')}><ArrowLeft size={14} /> Back</Button>
+        {isAdmin && (
+          <Link to={`/admin/assessments?edit=${d.id}`}>
+            <Button variant="secondary" size="sm">Edit / Delete in Admin</Button>
+          </Link>
+        )}
+      </div>
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -310,7 +349,14 @@ export function AssessmentDetail() {
               {d.subjects && <Badge tone="neutral">{d.subjects.code}</Badge>}
             </div>
           </div>
-          <Button variant="primary" loading={importing} onClick={doImport}><Plus size={13} /> Add to workspace</Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Link to={`/admin/assessments?edit=${d.id}`}>
+                <Button variant="secondary" size="sm">Admin Manage</Button>
+              </Link>
+            )}
+            <Button variant="primary" loading={importing} onClick={doImport}><Plus size={13} /> Add to workspace</Button>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 border-y border-line-soft py-4 sm:grid-cols-4">
@@ -371,7 +417,7 @@ function AttachmentsList({ entityType, entityId }: { entityType: string; entityI
 
 /* ===================== Announcements ===================== */
 export function AnnouncementsPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const [category, setCategory] = useState('')
   const [q, setQ] = useState('')
@@ -402,6 +448,13 @@ export function AnnouncementsPage() {
             <option value="">All categories</option>
             {['notice', 'class', 'academic', 'schedule', 'event', 'exam', 'urgent'].map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}
           </Select>
+          {isAdmin && (
+            <Link to="/admin/announcements">
+              <Button variant="primary" size="sm">
+                <Plus size={13} /> Post announcement (Admin)
+              </Button>
+            </Link>
+          )}
         </div>
         {loading && <TableSkeleton rows={5} cols={3} />}
         {error && <ErrorState message={error} onRetry={() => void reload()} />}
@@ -410,19 +463,26 @@ export function AnnouncementsPage() {
           {rows.map((a: any) => {
             const unread = !data?.reads.has(a.id)
             return (
-              <Link key={a.id} to={`/announcements/${a.id}`} onClick={() => markRead(a.id)} className={cn('block px-4 py-3.5 transition-colors hover:bg-bg-2/60', unread && 'bg-accent/[0.03]')}>
-                <div className="flex flex-wrap items-center gap-2">
-                  {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
-                  {a.is_pinned && <Badge tone="accent">pinned</Badge>}
-                  <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink">{a.title}</span>
-                  <Badge tone={a.category === 'urgent' ? 'danger' : a.category === 'exam' ? 'warn' : 'neutral'}>{a.category}</Badge>
-                </div>
-                <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-muted">{a.body}</p>
-                <p className="mt-1.5 text-[10.5px] text-faint">
-                  {formatDistanceToNowStrict(new Date(a.publish_at), { addSuffix: true })}
-                  {a.profiles?.full_name ? ` · ${a.profiles.full_name}` : ''}
-                </p>
-              </Link>
+              <div key={a.id} className="flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-bg-2/60">
+                <Link to={`/announcements/${a.id}`} onClick={() => markRead(a.id)} className={cn('min-w-0 flex-1', unread && 'text-accent')}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
+                    {a.is_pinned && <Badge tone="accent">pinned</Badge>}
+                    <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-ink">{a.title}</span>
+                    <Badge tone={a.category === 'urgent' ? 'danger' : a.category === 'exam' ? 'warn' : 'neutral'}>{a.category}</Badge>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-muted">{a.body}</p>
+                  <p className="mt-1.5 text-[10.5px] text-faint">
+                    {formatDistanceToNowStrict(new Date(a.publish_at), { addSuffix: true })}
+                    {a.profiles?.full_name ? ` · ${a.profiles.full_name}` : ''}
+                  </p>
+                </Link>
+                {isAdmin && (
+                  <Link to={`/admin/announcements?edit=${a.id}`} className="ml-3 shrink-0">
+                    <Button variant="ghost" size="sm" className="text-[11px]">Edit</Button>
+                  </Link>
+                )}
+              </div>
             )
           })}
         </div>
@@ -433,7 +493,7 @@ export function AnnouncementsPage() {
 
 export function AnnouncementDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const navigate = useNavigate()
   const { data, loading, error } = useAsyncData(async () => {
@@ -452,7 +512,14 @@ export function AnnouncementDetail() {
   const a: any = data
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/announcements')}><ArrowLeft size={14} /> Back</Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/announcements')}><ArrowLeft size={14} /> Back</Button>
+        {isAdmin && (
+          <Link to={`/admin/announcements?edit=${a.id}`}>
+            <Button variant="secondary" size="sm">Edit / Delete in Admin</Button>
+          </Link>
+        )}
+      </div>
       <Card className="p-6">
         <div className="flex flex-wrap items-center gap-2">
           {a.is_pinned && <Badge tone="accent">pinned</Badge>}
@@ -473,7 +540,7 @@ export function AnnouncementDetail() {
 
 /* ===================== Opportunities ===================== */
 export function OpportunitiesPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const [q, setQ] = useState('')
   const [category, setCategory] = useState('')
@@ -517,6 +584,13 @@ export function OpportunitiesPage() {
           <label className="flex items-center gap-1.5 text-[12px] text-muted">
             <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} className="accent-[#22d3a5]" /> Saved only
           </label>
+          {isAdmin && (
+            <Link to="/admin/opportunities">
+              <Button variant="primary" size="sm">
+                <Plus size={13} /> Add opportunity (Admin)
+              </Button>
+            </Link>
+          )}
         </div>
         {loading && <TableSkeleton rows={5} cols={4} />}
         {error && <ErrorState message={error} onRetry={() => void reload()} />}
@@ -546,6 +620,11 @@ export function OpportunitiesPage() {
                   ? <Badge tone="accent"><Check size={11} /> Saved</Badge>
                   : <Button size="sm" variant="primary" loading={saving === o.id} onClick={() => doSave(o)}>Save</Button>}
                 <Link to={`/opportunities/${o.id}`}><Button size="sm" variant="ghost">Details</Button></Link>
+                {isAdmin && (
+                  <Link to={`/admin/opportunities?edit=${o.id}`}>
+                    <Button size="sm" variant="ghost">Edit (Admin)</Button>
+                  </Link>
+                )}
                 {o.apply_url && (
                   <a href={o.apply_url} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" variant="ghost">Apply <ExternalLink size={11} /></Button>
@@ -562,7 +641,7 @@ export function OpportunitiesPage() {
 
 export function OpportunityDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const navigate = useNavigate()
   const { data, loading, error } = useAsyncData(async () => {
@@ -579,7 +658,14 @@ export function OpportunityDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/opportunities')}><ArrowLeft size={14} /> Back</Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/opportunities')}><ArrowLeft size={14} /> Back</Button>
+        {isAdmin && (
+          <Link to={`/admin/opportunities?edit=${o.id}`}>
+            <Button variant="secondary" size="sm">Edit / Delete in Admin</Button>
+          </Link>
+        )}
+      </div>
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

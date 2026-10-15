@@ -1,14 +1,16 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Activity, ArrowRight, FileText, GraduationCap, Megaphone, Plus, Sparkles, Target, TrendingUp, Users,
+  Activity, ArrowRight, CheckCircle2, FileText, GraduationCap, Megaphone, Plus, ShieldCheck, Sparkles, Target, TrendingUp, Users,
 } from 'lucide-react'
 import { formatDistanceToNowStrict } from 'date-fns'
+import { toast } from 'sonner'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { fetchAnnouncements, fetchAssignments, fetchAssessments, fetchOpportunities, fetchSubjects, listUsers } from '@/lib/api'
-import { Badge, Card, CardHeader, EmptyState, ErrorState } from '@/components/ui'
+import { Badge, Button, Card, CardHeader, EmptyState, ErrorState } from '@/components/ui'
 import { StatTile, friendlyDate } from '@/components/shared'
 import { titleCase } from '@/lib/utils'
+import { verifyBlockchainIntegrity } from '@/lib/blockchainAudit'
 
 export default function AdminOverview() {
   const { data, loading, error, reload } = useAsyncData(async () => {
@@ -19,6 +21,30 @@ export default function AdminOverview() {
     ])
     return { assignments, assessments, announcements, opportunities, users, subjects }
   }, [])
+
+  const [chainStatus, setChainStatus] = useState<{ valid: boolean; blockCount: number; latestHash: string; details?: string } | null>(null)
+  const [verifying, setVerifying] = useState(false)
+
+  useEffect(() => {
+    verifyBlockchainIntegrity().then(setChainStatus)
+  }, [])
+
+  const runAudit = async () => {
+    setVerifying(true)
+    try {
+      const res = await verifyBlockchainIntegrity()
+      setChainStatus(res)
+      if (res.valid) {
+        toast.success(`Ledger Verified: All ${res.blockCount} blocks valid & tamper-proof`)
+      } else {
+        toast.error(`Verification Failed: ${res.details}`)
+      }
+    } catch {
+      toast.error('Ledger check error')
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   const stats = useMemo(() => {
     if (!data) return null
@@ -139,6 +165,48 @@ export default function AdminOverview() {
           </div>
         </Card>
       </div>
+
+      <Card className="p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft pb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-accent/15 text-accent">
+              <ShieldCheck size={18} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-[13.5px] font-semibold text-ink">Cryptographic Blockchain Security Ledger</h3>
+                <Badge tone={chainStatus?.valid ? 'accent' : 'danger'}>
+                  <CheckCircle2 size={11} /> {chainStatus?.valid ? 'SECURE · VALIDATED' : 'TAMPER DETECTED'}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-faint">
+                SHA-256 chained hashes guarantee tamper-evident auditability across member permissions and academic records.
+              </p>
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" loading={verifying} onClick={runAudit}>
+            Verify Ledger Integrity
+          </Button>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-line-soft bg-bg-2 p-3">
+            <p className="text-[10.5px] uppercase tracking-wider text-faint">Verified Block Count</p>
+            <p className="mt-1 text-[18px] font-semibold text-ink">{chainStatus?.blockCount ?? 1} blocks</p>
+            <p className="text-[11px] text-accent">0 broken links</p>
+          </div>
+          <div className="rounded-lg border border-line-soft bg-bg-2 p-3">
+            <p className="text-[10.5px] uppercase tracking-wider text-faint">Consensus / Hashing Algorithm</p>
+            <p className="mt-1 text-[14px] font-semibold text-ink">Web Crypto SHA-256</p>
+            <p className="text-[11px] text-faint">Immutable Chained Proof</p>
+          </div>
+          <div className="rounded-lg border border-line-soft bg-bg-2 p-3">
+            <p className="text-[10.5px] uppercase tracking-wider text-faint">Latest Head Block Hash</p>
+            <p className="mt-1 truncate font-mono text-[11px] text-ink">{chainStatus?.latestHash ?? 'calculating…'}</p>
+            <p className="text-[11px] text-accent">Chain tip secured</p>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }

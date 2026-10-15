@@ -13,6 +13,7 @@ import { aggregateProgress, completionRatio } from '@/lib/domain'
 import { toast } from 'sonner'
 
 export function SubjectsPage() {
+  const { isAdmin } = useAuth()
   const { data, loading, error, reload } = useAsyncData(async () => {
     const [subjects, semesters] = await Promise.all([fetchSubjects(), fetchSemesters()])
     return { subjects, semesters }
@@ -28,6 +29,14 @@ export function SubjectsPage() {
 
   return (
     <div className="space-y-5">
+      {isAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 text-[12.5px] text-accent">
+          <span>Admin mode: Manage curriculum subjects, faculties, and semester assignments.</span>
+          <Link to="/admin/curriculum">
+            <Button variant="primary" size="sm">Manage Curriculum & Subjects (Admin)</Button>
+          </Link>
+        </div>
+      )}
       {(data?.semesters ?? []).filter((s: any) => s.is_active).map((sem: any) => (
         <section key={sem.id}>
           <div className="mb-2 flex items-center gap-2">
@@ -60,7 +69,7 @@ export function SubjectsPage() {
 
 export function SubjectDetail() {
   const { id } = useParams()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const [busy, setBusy] = useState(false)
 
@@ -100,6 +109,14 @@ export function SubjectDetail() {
 
   return (
     <div className="space-y-4">
+      {isAdmin && (
+        <div className="flex items-center justify-between rounded-lg border border-accent/30 bg-accent/10 px-3.5 py-2 text-[12px] text-accent">
+          <span>Admin mode: Need to update syllabus topics, units, or subject metadata?</span>
+          <Link to="/admin/curriculum">
+            <Button variant="secondary" size="sm">Manage in Curriculum Admin</Button>
+          </Link>
+        </div>
+      )}
       <Card className="flex flex-wrap items-center gap-5 p-5">
         <ProgressRing value={stats.percent} size={86} />
         <div className="min-w-0 flex-1">

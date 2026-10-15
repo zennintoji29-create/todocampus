@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   FileText, Pencil, Plus, Send, Trash2, Upload, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuth } from '@/hooks/useAuth'
 import {
   adminCreate, adminUpdate, adminDelete, attachToEntity, deleteAttachment,
   fetchAnnouncements, fetchAssignments, fetchAssessments, fetchAttachments, fetchOpportunities,
@@ -18,6 +19,7 @@ import { friendlyDate } from '@/components/shared'
 import { titleCase } from '@/lib/utils'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { formatDistanceToNowStrict } from 'date-fns'
+import { recordAuditBlock } from '@/lib/blockchainAudit'
 
 type Status = 'draft' | 'published' | 'archived'
 const STATUSES: Status[] = ['draft', 'published', 'archived']
@@ -78,6 +80,7 @@ function AttachmentsEditor({ entityType, entityId, onChanged }: { entityType: st
 
 /* ===================== Assignments ===================== */
 export function AdminAssignments() {
+  const { user } = useAuth()
   const [params] = useSearchParams()
   const { data, loading, error, reload } = useAsyncData(async () => {
     const [assignments, subjects, semesters] = await Promise.all([
@@ -108,6 +111,14 @@ export function AdminAssignments() {
     publish_date: a.publish_date ?? '', deadline: toLocal(a.deadline), priority: a.priority, status: a.status,
   })
 
+  useEffect(() => {
+    const editId = params.get('edit')
+    if (editId && data?.assignments && !form) {
+      const found = data.assignments.find((a: any) => a.id === editId)
+      if (found) openEdit(found)
+    }
+  }, [params, data, form])
+
   const save = async () => {
     const f = form!
     if (!f.title.trim()) { toast.error('Title is required.'); return }
@@ -126,8 +137,13 @@ export function AdminAssignments() {
         publish_date: f.publish_date || null, deadline: deadline.toISOString(),
         priority: f.priority, status: f.status,
       }
-      if (f.isNew) await adminCreate('assignments', payload)
-      else await adminUpdate('assignments', f.id, payload)
+      if (f.isNew) {
+        await adminCreate('assignments', payload)
+        await recordAuditBlock('CREATE_ASSIGNMENT', user?.email ?? 'admin', 'assignments', { title: payload.title })
+      } else {
+        await adminUpdate('assignments', f.id, payload)
+        await recordAuditBlock('UPDATE_ASSIGNMENT', user?.email ?? 'admin', f.id, { title: payload.title })
+      }
       toast.success(f.isNew ? 'Assignment created' : 'Assignment updated')
       setForm(null)
       await reload()
@@ -242,7 +258,13 @@ export function AdminAssignments() {
         message={`"${confirm?.title}" will be removed for every student. Consider archiving instead — imported tasks keep their personal progress either way.`}
         onConfirm={async () => {
           setBusy(true)
-          try { await adminDelete('assignments', confirm.id); setConfirm(null); await reload(); toast.success('Deleted') }
+          try {
+            await adminDelete('assignments', confirm.id)
+            await recordAuditBlock('DELETE_ASSIGNMENT', user?.email ?? 'admin', confirm.id, { title: confirm.title })
+            setConfirm(null)
+            await reload()
+            toast.success('Deleted')
+          }
           catch (e: any) { toast.error(e?.message ?? 'Delete failed.') }
           finally { setBusy(false) }
         }} />
@@ -253,6 +275,8 @@ export function AdminAssignments() {
 
 /* ===================== Assessments ===================== */
 export function AdminAssessments() {
+  const { user } = useAuth()
+  const [params] = useSearchParams()
   const { data, loading, error, reload } = useAsyncData(async () => {
     const [assessments, subjects, semesters] = await Promise.all([
       fetchAssessments({ includeArchived: true, limit: 500 }), fetchSubjects(), fetchSemesters(),
@@ -280,6 +304,14 @@ export function AdminAssessments() {
     links: (a.reference_links ?? []).join('\n'), venue: a.venue ?? '', status: a.status,
   })
 
+  useEffect(() => {
+    const editId = params.get('edit')
+    if (editId && data?.assessments && !form) {
+      const found = data.assessments.find((a: any) => a.id === editId)
+      if (found) openEdit(found)
+    }
+  }, [params, data, form])
+
   const save = async () => {
     const f = form!
     if (!f.title.trim()) { toast.error('Title is required.'); return }
@@ -296,8 +328,13 @@ export function AdminAssessments() {
         syllabus_coverage: f.syllabus_coverage || null, instructions: f.instructions || null,
         reference_links: links, venue: f.venue || null, status: f.status,
       }
-      if (f.isNew) await adminCreate('assessments', payload)
-      else await adminUpdate('assessments', f.id, payload)
+      if (f.isNew) {
+        await adminCreate('assessments', payload)
+        await recordAuditBlock('CREATE_ASSESSMENT', user?.email ?? 'admin', 'assessments', { title: payload.title, kind: payload.kind })
+      } else {
+        await adminUpdate('assessments', f.id, payload)
+        await recordAuditBlock('UPDATE_ASSESSMENT', user?.email ?? 'admin', f.id, { title: payload.title, kind: payload.kind })
+      }
       toast.success(f.isNew ? 'Assessment created' : 'Assessment updated')
       setForm(null)
       await reload()
@@ -388,7 +425,13 @@ export function AdminAssessments() {
         title="Delete assessment?" message={`"${confirm?.title}" will be removed for every student. Archiving keeps personal history intact.`}
         onConfirm={async () => {
           setBusy(true)
-          try { await adminDelete('assessments', confirm.id); setConfirm(null); await reload(); toast.success('Deleted') }
+          try {
+            await adminDelete('assessments', confirm.id)
+            await recordAuditBlock('DELETE_ASSESSMENT', user?.email ?? 'admin', confirm.id, { title: confirm.title })
+            setConfirm(null)
+            await reload()
+            toast.success('Deleted')
+          }
           catch (e: any) { toast.error(e?.message ?? 'Delete failed.') }
           finally { setBusy(false) }
         }} />
@@ -398,6 +441,8 @@ export function AdminAssessments() {
 
 /* ===================== Announcements ===================== */
 export function AdminAnnouncements() {
+  const { user } = useAuth()
+  const [params] = useSearchParams()
   const { data, loading, error, reload } = useAsyncData(async () => {
     const [announcements, semesters] = await Promise.all([fetchAnnouncements({ includeUnpublished: true, limit: 200 }), fetchSemesters()])
     return { announcements, semesters }
@@ -419,6 +464,14 @@ export function AdminAnnouncements() {
     is_pinned: a.is_pinned, status: a.status,
   })
 
+  useEffect(() => {
+    const editId = params.get('edit')
+    if (editId && data?.announcements && !form) {
+      const found = data.announcements.find((a: any) => a.id === editId)
+      if (found) openEdit(found)
+    }
+  }, [params, data, form])
+
   const save = async () => {
     const f = form!
     if (!f.title.trim()) { toast.error('Title is required.'); return }
@@ -431,8 +484,13 @@ export function AdminAnnouncements() {
         audience_semester_id: f.audience === 'semester' ? f.audience_semester_id : null,
         is_pinned: f.is_pinned, status: f.status,
       }
-      if (f.isNew) await adminCreate('announcements', payload)
-      else await adminUpdate('announcements', f.id, payload)
+      if (f.isNew) {
+        await adminCreate('announcements', payload)
+        await recordAuditBlock('CREATE_ANNOUNCEMENT', user?.email ?? 'admin', 'announcements', { title: payload.title, category: payload.category })
+      } else {
+        await adminUpdate('announcements', f.id, payload)
+        await recordAuditBlock('UPDATE_ANNOUNCEMENT', user?.email ?? 'admin', f.id, { title: payload.title, category: payload.category })
+      }
       toast.success(f.status === 'published' ? 'Published — students notified' : 'Saved')
       setForm(null)
       await reload()
@@ -524,7 +582,13 @@ export function AdminAnnouncements() {
         title="Delete announcement?" message={`"${confirm?.title}" and its notifications will be removed.`}
         onConfirm={async () => {
           setBusy(true)
-          try { await adminDelete('announcements', confirm.id); setConfirm(null); await reload(); toast.success('Deleted') }
+          try {
+            await adminDelete('announcements', confirm.id)
+            await recordAuditBlock('DELETE_ANNOUNCEMENT', user?.email ?? 'admin', confirm.id, { title: confirm.title })
+            setConfirm(null)
+            await reload()
+            toast.success('Deleted')
+          }
           catch (e: any) { toast.error(e?.message ?? 'Delete failed.') }
           finally { setBusy(false) }
         }} />
@@ -534,6 +598,8 @@ export function AdminAnnouncements() {
 
 /* ===================== Opportunities ===================== */
 export function AdminOpportunities() {
+  const { user } = useAuth()
+  const [params] = useSearchParams()
   const { data, loading, error, reload } = useAsyncData(() => fetchOpportunities({ includeArchived: true, limit: 300 }), [])
   const [q, setQ] = useState('')
   const [category, setCategory] = useState('')
@@ -557,6 +623,14 @@ export function AdminOpportunities() {
     publish_date: o.publish_date ?? '', location: o.location ?? '', stipend: o.stipend ?? '', status: o.status,
   })
 
+  useEffect(() => {
+    const editId = params.get('edit')
+    if (editId && data && !form) {
+      const found = data.find((o: any) => o.id === editId)
+      if (found) openEdit(found)
+    }
+  }, [params, data, form])
+
   const save = async () => {
     const f = form!
     if (!f.title.trim()) { toast.error('Title is required.'); return }
@@ -572,8 +646,13 @@ export function AdminOpportunities() {
         publish_date: f.publish_date || null, location: f.location || null, stipend: f.stipend || null,
         status: f.status,
       }
-      if (f.isNew) await adminCreate('opportunities', payload)
-      else await adminUpdate('opportunities', f.id, payload)
+      if (f.isNew) {
+        await adminCreate('opportunities', payload)
+        await recordAuditBlock('CREATE_OPPORTUNITY', user?.email ?? 'admin', 'opportunities', { title: payload.title, organization: payload.organization })
+      } else {
+        await adminUpdate('opportunities', f.id, payload)
+        await recordAuditBlock('UPDATE_OPPORTUNITY', user?.email ?? 'admin', f.id, { title: payload.title, organization: payload.organization })
+      }
       toast.success(f.isNew ? 'Opportunity created' : 'Opportunity updated')
       setForm(null)
       await reload()
@@ -658,7 +737,13 @@ export function AdminOpportunities() {
         title="Delete opportunity?" message={`"${confirm?.title}" will be removed. Students' saved applications keep their private notes and status.`}
         onConfirm={async () => {
           setBusy(true)
-          try { await adminDelete('opportunities', confirm.id); setConfirm(null); await reload(); toast.success('Deleted') }
+          try {
+            await adminDelete('opportunities', confirm.id)
+            await recordAuditBlock('DELETE_OPPORTUNITY', user?.email ?? 'admin', confirm.id, { title: confirm.title })
+            setConfirm(null)
+            await reload()
+            toast.success('Deleted')
+          }
           catch (e: any) { toast.error(e?.message ?? 'Delete failed.') }
           finally { setBusy(false) }
         }} />

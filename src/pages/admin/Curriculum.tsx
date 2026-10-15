@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { GraduationCap, Pencil, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuth } from '@/hooks/useAuth'
 import {
   adminCreate, adminDelete, adminUpdate, fetchSemesters, fetchSubjects, fetchUnits, fetchTopics,
 } from '@/lib/api'
@@ -9,6 +10,7 @@ import {
   TableSkeleton, Textarea,
 } from '@/components/ui'
 import { useAsyncData } from '@/hooks/useAsyncData'
+import { recordAuditBlock } from '@/lib/blockchainAudit'
 
 /* ============ generic editor helpers shared by admin pages ============ */
 export function AdminEditorShell({ open, title, description, onClose, onSubmit, busy, submitLabel = 'Save', children, width = 'lg' }: {
@@ -26,6 +28,7 @@ export function AdminEditorShell({ open, title, description, onClose, onSubmit, 
 
 /* ===================== Semesters & Subjects ===================== */
 export default function Curriculum() {
+  const { user } = useAuth()
   const { data, loading, error, reload } = useAsyncData(async () => {
     const [semesters, subjects] = await Promise.all([fetchSemesters(), fetchSubjects()])
     return { semesters, subjects }
@@ -43,8 +46,13 @@ export default function Curriculum() {
     setBusy(true)
     try {
       const payload = { number: num, name: f.name.trim() || `Semester ${num}`, start_date: f.start_date || null, end_date: f.end_date || null, is_active: f.is_active }
-      if (f.id) await adminUpdate('semesters', f.id, payload)
-      else await adminCreate('semesters', payload)
+      if (f.id) {
+        await adminUpdate('semesters', f.id, payload)
+        await recordAuditBlock('UPDATE_SEMESTER', user?.email ?? 'admin', f.id, payload)
+      } else {
+        await adminCreate('semesters', payload)
+        await recordAuditBlock('CREATE_SEMESTER', user?.email ?? 'admin', 'semesters', payload)
+      }
       toast.success(f.id ? 'Semester updated' : 'Semester created')
       setSemesterForm(null)
       await reload()
@@ -63,8 +71,13 @@ export default function Curriculum() {
         credits: f.credits ? Number(f.credits) : null, faculty: f.faculty || null,
         description: f.description || null, position: Number(f.position || 0),
       }
-      if (f.id) await adminUpdate('subjects', f.id, payload)
-      else await adminCreate('subjects', payload)
+      if (f.id) {
+        await adminUpdate('subjects', f.id, payload)
+        await recordAuditBlock('UPDATE_SUBJECT', user?.email ?? 'admin', f.id, payload)
+      } else {
+        await adminCreate('subjects', payload)
+        await recordAuditBlock('CREATE_SUBJECT', user?.email ?? 'admin', 'subjects', payload)
+      }
       toast.success(f.id ? 'Subject updated' : 'Subject created')
       setSubjectForm(null)
       await reload()
@@ -79,6 +92,7 @@ export default function Curriculum() {
     setBusy(true)
     try {
       await adminDelete(confirm.kind === 'semester' ? 'semesters' : 'subjects', confirm.id)
+      await recordAuditBlock(confirm.kind === 'semester' ? 'DELETE_SEMESTER' : 'DELETE_SUBJECT', user?.email ?? 'admin', confirm.id, { name: confirm.name })
       toast.success('Deleted')
       setConfirm(null)
       await reload()
@@ -210,6 +224,7 @@ export default function Curriculum() {
 
 /* ===================== Syllabus units & topics ===================== */
 export function AdminSyllabus() {
+  const { user } = useAuth()
   const { data, loading, error, reload } = useAsyncData(async () => {
     const [subjects, units, topics] = await Promise.all([fetchSubjects(), fetchUnits(), fetchTopics()])
     return { subjects, units, topics }
@@ -228,8 +243,13 @@ export function AdminSyllabus() {
     setBusy(true)
     try {
       const payload = { subject_id: f.subject_id, unit_number: n, title: f.title.trim(), description: f.description || null }
-      if (f.id) await adminUpdate('syllabus_units', f.id, payload)
-      else await adminCreate('syllabus_units', payload)
+      if (f.id) {
+        await adminUpdate('syllabus_units', f.id, payload)
+        await recordAuditBlock('UPDATE_SYLLABUS_UNIT', user?.email ?? 'admin', f.id, payload)
+      } else {
+        await adminCreate('syllabus_units', payload)
+        await recordAuditBlock('CREATE_SYLLABUS_UNIT', user?.email ?? 'admin', 'syllabus_units', payload)
+      }
       toast.success(f.id ? 'Unit updated' : 'Unit created')
       setUnitForm(null)
       await reload()
@@ -249,8 +269,13 @@ export function AdminSyllabus() {
         est_minutes: f.est_minutes ? Number(f.est_minutes) : null, is_optional: f.is_optional,
         position: Number(f.position || 0),
       }
-      if (f.id) await adminUpdate('syllabus_topics', f.id, payload)
-      else await adminCreate('syllabus_topics', payload)
+      if (f.id) {
+        await adminUpdate('syllabus_topics', f.id, payload)
+        await recordAuditBlock('UPDATE_SYLLABUS_TOPIC', user?.email ?? 'admin', f.id, payload)
+      } else {
+        await adminCreate('syllabus_topics', payload)
+        await recordAuditBlock('CREATE_SYLLABUS_TOPIC', user?.email ?? 'admin', 'syllabus_topics', payload)
+      }
       toast.success(f.id ? 'Topic updated' : 'Topic created')
       setTopicForm(null)
       await reload()
@@ -263,6 +288,12 @@ export function AdminSyllabus() {
     setBusy(true)
     try {
       await adminDelete(confirm.table, confirm.id)
+      await recordAuditBlock(
+        confirm.table === 'syllabus_units' ? 'DELETE_SYLLABUS_UNIT' : 'DELETE_SYLLABUS_TOPIC',
+        user?.email ?? 'admin',
+        confirm.id,
+        { name: confirm.name }
+      )
       toast.success('Deleted')
       setConfirm(null)
       await reload()

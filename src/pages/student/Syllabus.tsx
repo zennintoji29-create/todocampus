@@ -19,7 +19,7 @@ const NEXT_STATUS: Record<TopicStatus, TopicStatus> = {
 }
 
 export default function Syllabus() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const uid = user?.id
   const [params, setParams] = useSearchParams()
   const [filter, setFilter] = useState('')
@@ -84,6 +84,14 @@ export default function Syllabus() {
 
   return (
     <div className="space-y-4">
+      {isAdmin && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 text-[12.5px] text-accent">
+          <span>Admin mode: Customize, add, or reorganize syllabus units & topics.</span>
+          <Link to="/admin/syllabus">
+            <Button variant="primary" size="sm">Manage Syllabus Units (Admin)</Button>
+          </Link>
+        </div>
+      )}
       {/* summary */}
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <Card className="flex items-center gap-5 p-5">

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell, Briefcase, CalendarDays, CheckSquare, Command, FileText, GraduationCap, LayoutDashboard,
-  LogOut, Megaphone, Menu, Search, Settings, Shield, Sparkles, Target, BookOpen,
+  LogOut, Megaphone, Menu, Search, Settings, Shield, Sparkles, Target, BookOpen, Users,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -189,7 +189,17 @@ export default function AppShell({ variant = 'student' }: { variant?: 'student' 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const location = useLocation()
-  const nav = variant === 'admin' ? ADMIN_NAV : STUDENT_NAV
+  const nav: NavItem[] = useMemo(() => {
+    if (variant === 'admin') return ADMIN_NAV
+    if (isAdmin) {
+      return [
+        ...STUDENT_NAV,
+        { to: '/admin', label: 'Admin Portal', icon: <Shield size={16} /> },
+        { to: '/admin/users', label: 'Users & Roles', icon: <Users size={16} /> },
+      ]
+    }
+    return STUDENT_NAV
+  }, [variant, isAdmin])
 
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
   useEffect(() => {
@@ -215,6 +225,33 @@ export default function AppShell({ variant = 'student' }: { variant?: 'student' 
           <p className="mt-0.5 text-[10.5px] uppercase tracking-wider text-faint">{variant === 'admin' ? 'Admin portal' : 'Student workspace'}</p>
         </div>
       </Link>
+
+      {isAdmin && (
+        <div className="px-3 pb-2 pt-0.5">
+          <Link
+            to={variant === 'admin' ? '/' : '/admin'}
+            className={cn(
+              'flex items-center justify-between rounded-lg border px-3 py-2 text-[12px] font-medium transition-all shadow-sm',
+              variant === 'admin'
+                ? 'border-line bg-bg-2 text-muted hover:bg-bg-3 hover:text-ink'
+                : 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 hover:border-accent/60'
+            )}
+          >
+            <span className="flex items-center gap-2">
+              <Shield size={14} className={variant === 'admin' ? 'text-faint' : 'text-accent'} />
+              {variant === 'admin' ? 'Student Workspace' : 'Admin Portal'}
+            </span>
+            <span
+              className={cn(
+                'rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider',
+                variant === 'admin' ? 'bg-bg-0 text-faint' : 'bg-accent/25 text-accent'
+              )}
+            >
+              {variant === 'admin' ? 'Exit' : 'Switch'}
+            </span>
+          </Link>
+        </div>
+      )}
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2.5 pb-4">
         {nav.map((n) => (
@@ -281,6 +318,18 @@ export default function AppShell({ variant = 'student' }: { variant?: 'student' 
             <kbd className="rounded border border-line px-1 text-[10px]"><Command size={9} className="inline" />K</kbd>
           </button>
           <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Search" onClick={() => setPaletteOpen(true)}><Search size={16} /></Button>
+          {isAdmin && (
+            <Link to={variant === 'admin' ? '/' : '/admin'}>
+              <Button
+                variant={variant === 'admin' ? 'secondary' : 'primary'}
+                size="sm"
+                className="hidden sm:inline-flex items-center gap-1.5"
+              >
+                <Shield size={13} />
+                <span>{variant === 'admin' ? 'Student Workspace' : 'Admin Portal'}</span>
+              </Button>
+            </Link>
+          )}
           <NotificationBell />
         </header>
 
